@@ -23,7 +23,7 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
 
   ip = namei(path);
-    for (j = 0; j < pathLast && ip!=0; ++j)
+    for (j = 0; j < pathLast && ip==0; ++j)
     {
       char temp[256];
       temp[0]=0;
@@ -117,17 +117,19 @@ exec(char *path, char **argv)
 
 
 int
-add_path(void) {
-  char **arg = 0;
-  if (pathLast==10)
+sys_add_path(void) {
+  char *arg = 0;
+  if (pathLast==10) //if path list is full;
     return -1;
 
-  int res = argstr(0,arg);
+  int res = argstr(0,&arg);
   if (res==-1) 
     return -1;
-  if (res>128)
+
+  if (res>128)   //if path string longer than 128 chars
     return -1;
-  int len = strlen(*arg);
-  strncpy(pathList[pathLast++],*arg,len);
+
+  int len = strlen(arg);
+  strncpy(pathList[pathLast++],arg,len);
   return 0; 
 }
