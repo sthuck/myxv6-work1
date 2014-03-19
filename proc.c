@@ -47,6 +47,7 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
+  p->ctime = ticks;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -182,7 +183,6 @@ exit(void)
 
   iput(proc->cwd);
   proc->cwd = 0;
-
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -199,6 +199,7 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
+  proc->etime=ticks;
   sched();
   panic("zombie exit");
 }
@@ -292,9 +293,10 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      int tmp=ticks;
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
-
+      p->rtime=p->rtime+(ticks-tmp);
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
@@ -425,6 +427,7 @@ kill(int pid)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->killed = 1;
+      p->etime=ticks;
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING)
         p->state = RUNNABLE;
