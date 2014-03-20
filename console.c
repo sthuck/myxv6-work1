@@ -125,36 +125,60 @@ panic(char *s)
 #define BACKSPACE 0x100
 #define CRTPORT 0x3d4
 static ushort *crt = (ushort*)P2V(0xb8000);  // CGA memory
+static int last_pos=-1;
 
 static void
 cgaputc(int c)
 {
   int pos;
   
+  if (last_pos==-1) {
+  outb(CRTPORT, 14);
+  last_pos = inb(CRTPORT+1) << 8;
+  outb(CRTPORT, 15);
+  last_pos |= inb(CRTPORT+1);
+  }
+
   // Cursor position: col + 80*row.
   outb(CRTPORT, 14);
   pos = inb(CRTPORT+1) << 8;
   outb(CRTPORT, 15);
   pos |= inb(CRTPORT+1);
 
-  if(c == '\n')
-    pos += 80 - pos%80;
+  if(c == '\n') {
+    pos = last_pos + 80 - last_pos%80;
+    last_pos += 80 - last_pos%80;
+  }
   else if(c == BACKSPACE){
-    if(pos > 0) --pos;
-  } else
-    crt[pos++] = (c&0xff) | 0x0700;  // black on white
+    if(pos > 0) {--pos; --last_pos;}
+  } else if(c==0xE4) {
+    --pos;
+  } else {
+    if (pos==last_pos) {
+      crt[pos++] = (c&0xff) | 0x4F00;  // black on white
+      last_pos++;
+    }
+    else {
+      int i=last_pos++;
+      for (;i>pos;i--) {
+          crt[i]=crt[i-1];  //make place in buffer to enter new 'c'
+        }
+        crt[pos++] = (c&0xff) | 0x4F00;
+    }
+  }
   
-  if((pos/80) >= 24){  // Scroll up.
+  if((last_pos/80) >= 24){  // Scroll up.
     memmove(crt, crt+80, sizeof(crt[0])*23*80);
-    pos -= 80;
-    memset(crt+pos, 0, sizeof(crt[0])*(24*80 - pos));
+    last_pos -= 80;
+    pos-=80;
+    memset(crt+last_pos, 0, sizeof(crt[0])*(24*80 - last_pos));
   }
   
   outb(CRTPORT, 14);
   outb(CRTPORT+1, pos>>8);
   outb(CRTPORT, 15);
   outb(CRTPORT+1, pos);
-  crt[pos] = ' ' | 0x0700;
+  crt[pos] = crt[pos] | 0x0700;
 }
 
 void
@@ -180,6 +204,7 @@ struct {
   uint r;  // Read index
   uint w;  // Write index
   uint e;  // Edit index
+  uint l;  //last index
 } input;
 
 #define C(x)  ((x)-'@')  // Control-x
@@ -196,25 +221,52 @@ consoleintr(int (*getc)(void))
       procdump();
       break;
     case C('U'):  // Kill line.
-      while(input.e != input.w &&
-            input.buf[(input.e-1) % INPUT_BUF] != '\n'){
-        input.e--;
+      while(input.l != input.w &&
+            input.buf[(input.l-1) % INPUT_BUF] != '\n'){
+        input.l--;
         consputc(BACKSPACE);
       }
+      input.e=input.l;
       break;
     case C('H'): case '\x7f':  // Backspace
       if(input.e != input.w){
+        if (input.l==input.e) {  //cursor is at end 
+          input.e--;
+          input.l--;
+          consputc(BACKSPACE);
+        }
+        else {
+          int i=input.e--;
+          for (;i<input.l;i++)
+            input.buf[i%INPUT_BUF]=input.buf[(i+1)%INPUT_BUF];
+        }
+        input.l--;
+      }
+      break;
+    case 0xE4:
+      if(input.e != input.w){
         input.e--;
-        consputc(BACKSPACE);
+        consputc(c);
       }
       break;
     default:
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
+        
+        if (input.l==input.e) {  //cursor is at end
         input.buf[input.e++ % INPUT_BUF] = c;
+        input.l++;
+        }
+        else {
+          int i=input.l++;
+          for (;i>input.e;i--) {
+            input.buf[i%INPUT_BUF]=input.buf[(i-1)%INPUT_BUF];  //make place in buffer to enter new 'c'
+          }
+          input.buf[input.e++ % INPUT_BUF] = c;
+        }
         consputc(c);
-        if(c == '\n' || c == C('D') || input.e == input.r+INPUT_BUF){
-          input.w = input.e;
+        if(c == '\n' || c == C('D') || input.l == input.r+INPUT_BUF){
+          input.w = input.l;
           wakeup(&input.r);
         }
       }
