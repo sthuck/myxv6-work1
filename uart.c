@@ -10,7 +10,7 @@
 #include "mmu.h"
 #include "proc.h"
 #include "x86.h"
-
+#include "keys.h"
 #define COM1    0x3f8
 
 static int uart;    // is there a uart?
@@ -57,12 +57,22 @@ uartputc(int c)
     return;
   for(i = 0; i < 128 && !(inb(COM1+5) & 0x20); i++)
     microdelay(10);
-  if (c==0xE4) {
+  if (c==KEY_LF) {
      outb(COM1+0, 27);
      outb(COM1+0, 91);
      outb(COM1+0, 68);
     }
-    else {
+  else if (c==KEY_RT) {
+     outb(COM1+0, 27);
+     outb(COM1+0, 91);
+     outb(COM1+0, 67);
+  }
+  else if (c==0x100) {
+     outb(COM1+0, 27);
+     outb(COM1+0, 91);
+     outb(COM1+0, 80);
+  }
+  else {
       outb(COM1+0, c);
     }
   
