@@ -23,6 +23,7 @@ static struct {
   int locking;
 } cons;
 
+
 static void
 printint(int xx, int base, int sign)
 {
@@ -127,18 +128,18 @@ panic(char *s)
 static ushort *crt = (ushort*)P2V(0xb8000);  // CGA memory
 static int last_pos=-1;
 
+void initvga(void) {
+  outb(CRTPORT, 14);
+  last_pos = inb(CRTPORT+1) << 8;
+  outb(CRTPORT, 15);
+  last_pos |= inb(CRTPORT+1);
+}
+
 static void
 cgaputc(int c)
 {
   int pos;
   
-  if (last_pos==-1) {
-  outb(CRTPORT, 14);
-  last_pos = inb(CRTPORT+1) << 8;
-  outb(CRTPORT, 15);
-  last_pos |= inb(CRTPORT+1);
-  }
-
   // Cursor position: col + 80*row.
   outb(CRTPORT, 14);
   pos = inb(CRTPORT+1) << 8;
@@ -253,9 +254,9 @@ consoleintr(int (*getc)(void))
       if(c != 0 && input.e-input.r < INPUT_BUF){
         c = (c == '\r') ? '\n' : c;
         
-        if (input.l==input.e) {  //cursor is at end
-        input.buf[input.e++ % INPUT_BUF] = c;
-        input.l++;
+        if (input.l==input.e || c=='\n') {  //cursor is at end or new line
+        input.buf[input.l++ % INPUT_BUF] = c;
+        input.e++;
         }
         else {
           int i=input.l++;
@@ -267,6 +268,7 @@ consoleintr(int (*getc)(void))
         consputc(c);
         if(c == '\n' || c == C('D') || input.l == input.r+INPUT_BUF){
           input.w = input.l;
+          input.e = input.l;
           wakeup(&input.r);
         }
       }
