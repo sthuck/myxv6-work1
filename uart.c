@@ -86,9 +86,8 @@ uartsetcolor(char c) {
       uartputc(27);
       uartputc('[');
       uartputc('3');
-      uartputc('7');
+      uartputc('1');
       uartputc(';');
-      uartputc('4');
       uartputc('1');
       uartputc('m');
     break;

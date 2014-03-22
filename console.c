@@ -130,6 +130,35 @@ static ushort *crt = (ushort *)P2V(0xb8000); // CGA memory
 static int last_pos = -1;
 static char mode=0; //esc mode
 static short colormask=0x0700;
+#define INPUT_BUF 128
+#define MAX_HISTORY_LENGTH 20
+static char history[MAX_HISTORY_LENGTH][INPUT_BUF+1];
+static int last_history_ent = 0;
+static int last_seen_hist = 0;
+struct {
+  struct spinlock lock;
+  char buf[INPUT_BUF];
+  uint r;  // Read index
+  uint w;  // Write index
+  uint e;  // Edit index
+  uint l;  //last index
+} input;
+
+static void
+add_history(int start,int len) {
+  if (len==0)
+    return;
+  if (len+start<=INPUT_BUF)
+    safestrcpy(history[last_history_ent],&input.buf[start],len+1);
+  else {
+    int n1 = INPUT_BUF-start;
+    strncpy(history[last_history_ent],&input.buf[start],n1);
+    int n2 = len-n1+1;
+    safestrcpy(&history[last_history_ent][n1],&input.buf[0],n2);
+  }
+  last_history_ent++;
+  last_history_ent=last_history_ent%MAX_HISTORY_LENGTH;
+}
 
 void initvga(void)
 {
@@ -170,7 +199,7 @@ cgaputc(int c)
   if (c == '\n') {
     pos = last_pos + 80 - last_pos % 80;
     last_pos += 80 - last_pos % 80;
-  } 
+  }  
 
   else if (c == BACKSPACE) {
     if (pos > 0) {
@@ -261,21 +290,48 @@ consputc(int c) {
     }
 }
 
-#define INPUT_BUF 128
-struct {
-  struct spinlock lock;
-  char buf[INPUT_BUF];
-  uint r;  // Read index
-  uint w;  // Write index
-  uint e;  // Edit index
-  uint l;  //last index
-} input;
+static void
+move_to_end_line(void) {
+  int i = input.l-input.e;
+  for (;i>0;i--) {
+    setcursor(1);
+    uartputc(KEY_RT);
+  }
+  input.e=input.l;
+}
+
+static void
+move_to_begin_line(void) {
+  int i = input.e-input.r;
+  for (;i>0;i--) {
+    setcursor(-1);
+    uartputc(KEY_LF);
+  }
+  input.e=input.r;
+}
 
 
+static int
+getHistory(int index) {
+  if (history[index][0]) {
+    int i = input.l-input.r;
+    for (;i>0;i--)
+      consputc(BACKSPACE);
+    input.e=input.r;
+    i=0;
+    while (history[index][i]) {
+      input.buf[input.e++ % INPUT_BUF]=history[index][i];
+      consputc(history[index][i++]);
+    }
+    input.l=input.e;
+    return 1;
+  }
+  return 0;
+}
 void
 consoleintr(int (*getc)(void))
 {
-  int c;
+  int c,index;
   acquire(&input.lock);
   while ((c = getc()) >= 0) {
     switch (c) {
@@ -297,7 +353,7 @@ consoleintr(int (*getc)(void))
             input.e--;
             input.l--;
             consputc(BACKSPACE);
-          } else {
+          } else {                  //cursor is in middle of line
             int i = --input.e;
             for (; i < input.l; i++)
               input.buf[i % INPUT_BUF] = input.buf[(i + 1) % INPUT_BUF];
@@ -320,11 +376,37 @@ consoleintr(int (*getc)(void))
           setcursor(1);
         }
         break;
+      case KEY_UP:
+        last_seen_hist--;
+        index = (last_history_ent+last_seen_hist)%MAX_HISTORY_LENGTH;
+        index = (index>=0) ? index : MAX_HISTORY_LENGTH+index;
+        move_to_end_line();
+        if (getHistory(index))
+          ;
+        else
+          last_seen_hist++;
+      break;
+      case KEY_DN:
+        last_seen_hist++;
+        index = (last_history_ent+last_seen_hist)%MAX_HISTORY_LENGTH;
+        index = (index>=0) ? index : MAX_HISTORY_LENGTH+index; 
+        move_to_end_line();
+        if (getHistory(index))
+          ;
+        else
+          last_seen_hist--;
+      break;
+      case C('A'):
+        move_to_begin_line();
+        break;
+      case C('E'):
+        move_to_end_line();
+        break;
       default:
         if (c != 0 && input.e-input.r < INPUT_BUF) {
           c = (c == '\r') ? '\n' : c;
 
-          if (input.l == input.e || c == '\n') { //cursor is at end or new line
+          if (input.l == input.e || c == '\n') {        //cursor is at end or new line
             input.buf[input.l++ % INPUT_BUF] = c;
             input.e++;
           } else {
@@ -336,6 +418,8 @@ consoleintr(int (*getc)(void))
           }
           consputc(c);
           if (c == '\n' || c == C('D') || input.l == input.r + INPUT_BUF) {
+            last_seen_hist=0;
+            add_history(input.r,input.l-input.r-1);
             input.w = input.l;
             input.e = input.l;
             wakeup(&input.r);
@@ -346,6 +430,7 @@ consoleintr(int (*getc)(void))
   }
   release(&input.lock);
 }
+
 
 int
 consoleread(struct inode * ip, char *dst, int n)
