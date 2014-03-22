@@ -58,24 +58,75 @@ uartputc(int c)
   for(i = 0; i < 128 && !(inb(COM1+5) & 0x20); i++)
     microdelay(10);
   if (c==KEY_LF) {
-     outb(COM1+0, 27);
-     outb(COM1+0, 91);
-     outb(COM1+0, 68);
+    outb(COM1+0, 27);
+    outb(COM1+0, 91);
+    outb(COM1+0, 68);
     }
   else if (c==KEY_RT) {
-     outb(COM1+0, 27);
-     outb(COM1+0, 91);
-     outb(COM1+0, 67);
+    outb(COM1+0, 27);
+    outb(COM1+0, 91);
+    outb(COM1+0, 67);
   }
   else if (c==0x100) {
-     outb(COM1+0, 27);
-     outb(COM1+0, 91);
-     outb(COM1+0, 80);
+    outb(COM1+0, '\b');
+    outb(COM1+0, 27);
+    outb(COM1+0, 91);
+    outb(COM1+0, 80);
   }
   else {
       outb(COM1+0, c);
     }
   
+}
+
+void
+uartsetcolor(char c) {
+  switch (c) {
+    case 'A':
+      uartputc(27);
+      uartputc('[');
+      uartputc('3');
+      uartputc('7');
+      uartputc(';');
+      uartputc('4');
+      uartputc('1');
+      uartputc('m');
+    break;
+    case 'B':
+      uartputc(27);
+      uartputc('[');
+      uartputc('3');
+      uartputc('2');
+      uartputc('m');
+    break;
+    case 'C':
+      uartputc(27);
+      uartputc('[');
+      uartputc('3');
+      uartputc('2');
+      uartputc('m');
+    break;
+    case 'D':
+      uartputc(27);
+      uartputc('[');
+      uartputc('3');
+      uartputc('5');
+      uartputc('m');
+    break;
+    case 'E':
+      uartputc(27);
+      uartputc('[');
+      uartputc('4');
+      uartputc('3');
+      uartputc('m');
+    break;
+    default:
+      uartputc(27);
+      uartputc('[');
+      uartputc('0');
+      uartputc('m');
+    break;
+  }
 }
 
 static int

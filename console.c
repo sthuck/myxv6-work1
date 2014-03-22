@@ -128,6 +128,8 @@ panic(char *s)
 #define CRTPORT 0x3d4
 static ushort *crt = (ushort *)P2V(0xb8000); // CGA memory
 static int last_pos = -1;
+static char mode=0; //esc mode
+static short colormask=0x0700;
 
 void initvga(void)
 {
@@ -178,7 +180,7 @@ cgaputc(int c)
         crt[pos] = 0x4F20;
       }
     else {
-      int i=pos--;
+      int i=--pos;
       for (;i<last_pos;i++) 
         crt[i]=crt[i+1];
       last_pos--;
@@ -188,14 +190,14 @@ cgaputc(int c)
   //"normal" chars
   else {                               
     if (pos == last_pos) {
-      crt[pos++] = (c & 0xff) | 0x0700; // black on white
+      crt[pos++] = (c & 0xff) | colormask; // black on white
       last_pos++;
     } else {
       int i = last_pos++;
       for (; i > pos; i--) {
         crt[i] = crt[i - 1];    //make place in buffer to enter new 'c'
       }
-      crt[pos++] = (c & 0xff) | 0x0700;
+      crt[pos++] = (c & 0xff) | colormask;
     }
   }
 
@@ -214,21 +216,49 @@ cgaputc(int c)
 }
 
 void
-consputc(int c)
-{
-  if (panicked) {
-    cli();
-    for (;;)
-      ;
-  }
-
-  if (c == BACKSPACE) {
-    uartputc('\b');
-    uartputc(' ');
-    uartputc('\b');
-  } else
-    uartputc(c);
-  cgaputc(c);
+consputc(int c) {
+    if (panicked) {
+        cli();
+        for (;;)
+            ;
+    }
+    if (mode) {
+        switch (c) {
+        case 'A':
+            colormask = 0x4F00; //red background
+            uartsetcolor('A');
+            break;
+        case 'B':
+            colormask = 0x0A00; //green high
+            uartsetcolor('B');
+            break;
+        case 'C':
+            colormask = 0x0200; //green low
+            uartsetcolor('C');
+            break;
+        case 'D':
+            colormask = 0x0500;
+            uartsetcolor('D');
+            break;
+        case 'E':
+            colormask = 0x6800;
+            uartsetcolor('E');
+            break;
+        default:
+            colormask = 0x0700; //no color
+            uartsetcolor('R');
+            break;
+        }
+        mode = 0;
+    }
+    else {
+      if (c==0x1b) {
+      mode=1;
+      return;
+    }
+        uartputc(c);
+        cgaputc(c);
+    }
 }
 
 #define INPUT_BUF 128
@@ -246,74 +276,73 @@ void
 consoleintr(int (*getc)(void))
 {
   int c;
-
   acquire(&input.lock);
   while ((c = getc()) >= 0) {
     switch (c) {
-    case C('P'):  // Process listing.
-      procdump();
-      break;
-    case C('U'):  // Kill line.
-      while (input.l != input.w &&
-             input.buf[(input.l - 1) % INPUT_BUF] != '\n') {
-        input.l--;
-        consputc(BACKSPACE);
-      }
-      input.e = input.l;
-      break;
-    case C('H'):
-    case '\x7f':  // Backspace
-      if (input.e != input.w) {
-        if (input.l == input.e) { //cursor is at end
-          input.e--;
+      case C('P'):  // Process listing.
+        procdump();
+        break;
+      case C('U'):  // Kill line.
+        while (input.l != input.w &&
+               input.buf[(input.l - 1) % INPUT_BUF] != '\n') {
           input.l--;
           consputc(BACKSPACE);
-        } else {
-          int i = input.e--;
-          for (; i < input.l; i++)
-            input.buf[i % INPUT_BUF] = input.buf[(i + 1) % INPUT_BUF];
-          consputc(BACKSPACE);
-          input.l--;
         }
-      }
-      break;
-    case KEY_LF:
-      if (input.e != input.w) {
-        input.e--;
-        uartputc(c);
-        setcursor(-1);
-      }
-      break;
-    case KEY_RT:
-      if (input.e != input.l) {
-        input.e++;
-        uartputc(c);
-        setcursor(1);
-      }
-      break;
-    default:
-      if (c != 0 && input.e-input.r < INPUT_BUF) {
-        c = (c == '\r') ? '\n' : c;
-
-        if (input.l == input.e || c == '\n') { //cursor is at end or new line
-          input.buf[input.l++ % INPUT_BUF] = c;
-          input.e++;
-        } else {
-          int i = input.l++;
-          for (; i > input.e; i--) {
-            input.buf[i % INPUT_BUF] = input.buf[(i - 1) % INPUT_BUF]; //make place in buffer to enter new 'c'
+        input.e = input.l;
+        break;
+      case C('H'):
+      case '\x7f':  // Backspace
+        if (input.e != input.w) {
+          if (input.l == input.e) { //cursor is at end
+            input.e--;
+            input.l--;
+            consputc(BACKSPACE);
+          } else {
+            int i = --input.e;
+            for (; i < input.l; i++)
+              input.buf[i % INPUT_BUF] = input.buf[(i + 1) % INPUT_BUF];
+            consputc(BACKSPACE);
+            input.l--;
           }
-          input.buf[input.e++ % INPUT_BUF] = c;
         }
-        consputc(c);
-        if (c == '\n' || c == C('D') || input.l == input.r + INPUT_BUF) {
-          input.w = input.l;
-          input.e = input.l;
-          wakeup(&input.r);
+        break;
+      case KEY_LF:
+        if (input.e != input.w) {
+          input.e--;
+          uartputc(c);
+          setcursor(-1);
         }
+        break;
+      case KEY_RT:
+        if (input.e != input.l) {
+          input.e++;
+          uartputc(c);
+          setcursor(1);
+        }
+        break;
+      default:
+        if (c != 0 && input.e-input.r < INPUT_BUF) {
+          c = (c == '\r') ? '\n' : c;
+
+          if (input.l == input.e || c == '\n') { //cursor is at end or new line
+            input.buf[input.l++ % INPUT_BUF] = c;
+            input.e++;
+          } else {
+            int i = input.l++;
+            for (; i > input.e; i--) {
+              input.buf[i % INPUT_BUF] = input.buf[(i - 1) % INPUT_BUF]; //make place in buffer to enter new 'c'
+            }
+            input.buf[input.e++ % INPUT_BUF] = c;
+          }
+          consputc(c);
+          if (c == '\n' || c == C('D') || input.l == input.r + INPUT_BUF) {
+            input.w = input.l;
+            input.e = input.l;
+            wakeup(&input.r);
+          }
+        }
+        break;
       }
-      break;
-    }
   }
   release(&input.lock);
 }

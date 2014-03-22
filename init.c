@@ -20,7 +20,8 @@ main(void)
   dup(0);  // stderr
 
   for(;;){
-    printf(1, "init: starting sh\n");
+    printf(1, "%c%cinit: starting sh\n%c%c",0x1b,'A',0x1b,'R');
+
     pid = fork();
     if(pid < 0){
       printf(1, "init: fork failed\n");

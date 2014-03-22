@@ -160,7 +160,7 @@ extern struct spinlock tickslock;
 void            uartinit(void);
 void            uartintr(void);
 void            uartputc(int);
-
+void			uartsetcolor(char);
 // vm.c
 void            seginit(void);
 void            kvmalloc(void);
