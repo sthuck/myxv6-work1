@@ -23,6 +23,7 @@ char* sbrk(int);
 int sleep(int);
 int uptime(void);
 int add_path(char*);
+int wait2(int*,int*,int*);
 
 // ulib.c
 int stat(char*, struct stat*);

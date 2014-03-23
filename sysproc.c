@@ -88,3 +88,12 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int sys_wait2(void){
+  int wtime;
+  int rtime;
+  int iotime;
+  if (argint(0,&wtime)==-1 || argint(1,&rtime)==-1 || argint(2,&iotime)==-1)
+    return -1; 
+  return wait2((int*)wtime,(int*)rtime,(int*)iotime);
+}
