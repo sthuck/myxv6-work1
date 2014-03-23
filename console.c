@@ -270,7 +270,7 @@ consputc(int c) {
             uartsetcolor('D');
             break;
         case 'E':
-            colormask = 0x6800;
+            colormask = 0x0E00;
             uartsetcolor('E');
             break;
         default:
@@ -339,6 +339,7 @@ consoleintr(int (*getc)(void))
         procdump();
         break;
       case C('U'):  // Kill line.
+        move_to_end_line();
         while (input.l != input.w &&
                input.buf[(input.l - 1) % INPUT_BUF] != '\n') {
           input.l--;

@@ -63,7 +63,22 @@ ls(char *path)
         printf(1, "ls: cannot stat %s\n", buf);
         continue;
       }
-      printf(1, "%s %d %d %d\n", fmtname(buf), st.type, st.ino, st.size);
+      char color;
+      switch (st.type) {
+        case 1:
+          color='B';
+          break;
+        case 2:
+          color='D';
+          break;
+        case 3:
+          color='E';
+          break;
+        default:
+          color='R';
+          break;
+      }
+      printf(1, "%c%c%s %d %d %d%c%c\n", 0x1b,color, fmtname(buf), st.type, st.ino, st.size,0x1b,'R');
     }
     break;
   }
