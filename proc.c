@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "queue.h"
 
 struct {
   struct spinlock lock;
@@ -13,7 +14,7 @@ struct {
 } ptable;
 
 static struct proc *initproc;
-
+extern queue ProcQue;
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -101,6 +102,8 @@ userinit(void)
   p->cwd = namei("/");
 
   p->state = RUNNABLE;
+  enqueue(ProcQue,p);
+
 }
 
 // Grow current process's memory by n bytes.
