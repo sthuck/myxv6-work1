@@ -48,7 +48,6 @@ allocproc(void)
 found:
   p->state = EMBRYO;
   p->pid = nextpid++;
-  p->ctime = ticks;
   release(&ptable.lock);
 
   // Allocate kernel stack.
@@ -100,10 +99,11 @@ userinit(void)
 
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
-
   p->state = RUNNABLE;
-  enqueue(ProcQue,p);
 
+  #if SCHED_FRR 
+  enqueue(&ProcQue,p);
+  #endif
 }
 
 // Grow current process's memory by n bytes.
@@ -158,8 +158,15 @@ fork(void)
       np->ofile[i] = filedup(proc->ofile[i]);
   np->cwd = idup(proc->cwd);
  
+  np->etime=0;np->rtime=0;np->iotime=0;np->qtime=0;
+
   pid = np->pid;
   np->state = RUNNABLE;
+  
+  #if SCHED_FRR 
+  enqueue(&ProcQue,np);
+  #endif
+
   safestrcpy(np->name, proc->name, sizeof(proc->name));
   return pid;
 }
@@ -284,6 +291,7 @@ register_handler(sighandler_t sighandler)
 //  - swtch to start running that process
 //  - eventually that process transfers control
 //      via swtch back to the scheduler.
+#ifdef SCHED_DEFAULT
 void
 scheduler(void)
 {
@@ -299,16 +307,25 @@ scheduler(void)
       if(p->state != RUNNABLE)
         continue;
 
+
       // Switch to chosen process.  It is the process's job
       // to release ptable.lock and then reacquire it
       // before jumping back to us.
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+
+      acquire(&tickslock);
       int tmp=ticks;
+      release(&tickslock);
+
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
+
+      acquire(&tickslock);
       p->rtime=p->rtime+(ticks-tmp);
+      release(&tickslock);
+
       // Process is done running for now.
       // It should have changed its p->state before coming back.
       proc = 0;
@@ -317,6 +334,54 @@ scheduler(void)
 
   }
 }
+#endif
+
+#ifdef SCHED_FRR
+void
+scheduler(void)
+{
+  struct proc *p;
+
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+    if (isEmpty(&ProcQue)) {
+      release(&ptable.lock);
+      continue;
+    }
+    p=dequeue(&ProcQue);
+
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+
+    acquire(&tickslock);
+    int tmp=ticks;
+    release(&tickslock);
+
+    swtch(&cpu->scheduler, proc->context);
+    switchkvm();
+
+    acquire(&tickslock);
+    p->rtime=p->rtime+(ticks-tmp);
+    release(&tickslock);
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    proc = 0;
+    
+    release(&ptable.lock);
+
+  }
+}
+#endif
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state.
@@ -344,6 +409,11 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   proc->state = RUNNABLE;
+  
+  #ifdef SCHED_FRR
+  enqueue(&ProcQue,proc);
+  #endif
+
   sched();
   release(&ptable.lock);
 }
@@ -356,6 +426,10 @@ forkret(void)
   static int first = 1;
   // Still holding ptable.lock from scheduler.
   release(&ptable.lock);
+
+  acquire(&tickslock);
+  proc->ctime = ticks;
+  release(&tickslock);
 
   if (first) {
     // Some initialization functions must be run in the context
@@ -414,16 +488,21 @@ wakeup1(void *chan)
   struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
+      #ifdef SCHED_FRR
+      enqueue(&ProcQue,p);
+      #endif
+    }
 }
-void iotimecount(void *chan)
+void iotimecount(void)
 {
   struct proc *p;
-
+  acquire(&ptable.lock);
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan == chan)
+    if(p->state == SLEEPING && p->chan != 0)
       p->iotime++;
+  release(&ptable.lock);
 }
 
 // Wake up all processes sleeping on chan.
@@ -447,10 +526,13 @@ kill(int pid)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->pid == pid){
       p->killed = 1;
-      p->etime=ticks;
       // Wake process from sleep if necessary.
-      if(p->state == SLEEPING)
+      if(p->state == SLEEPING) {
         p->state = RUNNABLE;
+        #ifdef SCHED_FRR
+        enqueue(&ProcQue,p);
+        #endif
+      }
       release(&ptable.lock);
       return 0;
     }

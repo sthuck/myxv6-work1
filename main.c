@@ -37,7 +37,10 @@ main(void)
   iinit();         // inode cache
   ideinit();       // disk
 
-  init_queue(ProcQue);
+#ifdef SCHED_FRR
+  init_queue(&ProcQue);
+#endif
+
   if(!ismp)
     timerinit();   // uniprocessor timer
   startothers();   // start other processors
