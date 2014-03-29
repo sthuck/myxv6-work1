@@ -206,6 +206,9 @@ exit(void)
 
   iput(proc->cwd);
   proc->cwd = 0;
+  acquire(&tickslock);
+  proc->etime=ticks;
+  release(&tickslock);
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -222,7 +225,6 @@ exit(void)
 
   // Jump into the scheduler, never to return.
   proc->state = ZOMBIE;
-  proc->etime=ticks;
   sched();
   panic("zombie exit");
 }

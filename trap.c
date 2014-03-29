@@ -51,9 +51,9 @@ trap(struct trapframe *tf)
     if(cpu->id == 0){
       acquire(&tickslock);
       ticks++;
-      wakeup(&ticks);
-      release(&tickslock);
       iotimecount();
+      wakeup(&ticks);
+      release(&tickslock);      
     }
     lapiceoi();
     break;
