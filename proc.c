@@ -100,10 +100,12 @@ userinit(void)
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
   p->state = RUNNABLE;
+  p->prio=1;
 
-  #if SCHED_FRR 
+  #if SCHED_FRR || SCHED_FCFS || SCHED_3Q
   enqueue(&ProcQue,p);
   #endif
+
 }
 
 // Grow current process's memory by n bytes.
@@ -162,8 +164,9 @@ fork(void)
 
   pid = np->pid;
   np->state = RUNNABLE;
-  
-  #if SCHED_FRR 
+  np->prio=1;
+
+  #if SCHED_FRR || SCHED_FCFS || SCHED_3Q
   enqueue(&ProcQue,np);
   #endif
 
@@ -336,7 +339,7 @@ scheduler(void)
 }
 #endif
 
-#ifdef SCHED_FRR
+#if SCHED_FRR || SCHED_FCFS
 void
 scheduler(void)
 {
@@ -382,6 +385,60 @@ scheduler(void)
 }
 #endif
 
+#if SCHED_3Q
+void
+scheduler(void)
+{
+  struct proc *p;
+
+  for(;;){
+    // Enable interrupts on this processor.
+    sti();
+
+    // Loop over process table looking for process to run.
+    acquire(&ptable.lock);
+
+    p=dequeue(&ProcQueHigh);
+    if (p==0) {
+      p=dequeue(&ProcQue);
+      if (p==0) {
+         p=dequeue(&ProcQueLow);
+         if (p==0) {
+          release(&ptable.lock);
+          continue;
+         }
+      }
+    }    
+
+    // Switch to chosen process.  It is the process's job
+    // to release ptable.lock and then reacquire it
+    // before jumping back to us.
+    proc = p;
+    switchuvm(p);
+    p->state = RUNNING;
+
+    acquire(&tickslock);
+    int tmp=ticks;
+    release(&tickslock);
+
+    swtch(&cpu->scheduler, proc->context);
+    switchkvm();
+
+    acquire(&tickslock);
+    p->rtime=p->rtime+(ticks-tmp);
+    release(&tickslock);
+
+    // Process is done running for now.
+    // It should have changed its p->state before coming back.
+    proc = 0;
+    
+    release(&ptable.lock);
+
+  }
+}
+#endif
+
+
 
 // Enter scheduler.  Must hold only ptable.lock
 // and have changed proc->state.
@@ -410,8 +467,14 @@ yield(void)
   acquire(&ptable.lock);  //DOC: yieldlock
   proc->state = RUNNABLE;
   
-  #ifdef SCHED_FRR
+  #if SCHED_FRR || SCHED_FCFS
   enqueue(&ProcQue,proc);
+  #endif
+
+  #if SCHED_3Q
+  if (proc->prio==2)
+    panic("lowest prio process tried to yield");
+  enqueue(&ProcQues[++proc->prio],proc);
   #endif
 
   sched();
@@ -467,6 +530,19 @@ sleep(void *chan, struct spinlock *lk)
   // Go to sleep.
   proc->chan = chan;
   proc->state = SLEEPING;
+
+  #if SCHED_FRR || SCHED_3Q
+  proc->qtime=0;
+  #endif
+
+  #if SCHED_3Q   
+  if (!voluntarySleep) {
+    proc->voluntarySleep=0;
+    proc->prio++;
+    if (proc->prio<0) 
+      proc->prio=0;
+  }
+  #endif
   sched();
 
   // Tidy up.
@@ -490,19 +566,18 @@ wakeup1(void *chan)
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
     if(p->state == SLEEPING && p->chan == chan) {
       p->state = RUNNABLE;
-      #ifdef SCHED_FRR
+
+      #if SCHED_FRR || SCHED_FCFS
       enqueue(&ProcQue,p);
       #endif
+
+      #if SCHED_3Q
+      proc->prio--;
+      if (proc->prio<0) 
+        proc->prio=0;
+      enqueue(&ProcQues[proc->prio],p);
+      #endif
     }
-}
-void iotimecount(void)
-{
-  struct proc *p;
-  acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan != 0)
-      p->iotime++;
-  release(&ptable.lock);
 }
 
 // Wake up all processes sleeping on chan.
@@ -511,6 +586,16 @@ wakeup(void *chan)
 {
   acquire(&ptable.lock);
   wakeup1(chan);
+  release(&ptable.lock);
+}
+
+void iotimecount(void)
+{
+  struct proc *p;
+  acquire(&ptable.lock);
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
+    if(p->state == SLEEPING && p->chan != 0)
+      p->iotime++;
   release(&ptable.lock);
 }
 
@@ -529,8 +614,13 @@ kill(int pid)
       // Wake process from sleep if necessary.
       if(p->state == SLEEPING) {
         p->state = RUNNABLE;
-        #ifdef SCHED_FRR
+        
+        #if SCHED_FRR || SCHED_FCFS
         enqueue(&ProcQue,p);
+        #endif
+        
+        #if SCHED_3Q
+        enqueue(&ProcQues[proc->prio],p);
         #endif
       }
       release(&ptable.lock);

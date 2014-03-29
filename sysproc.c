@@ -70,6 +70,9 @@ sys_sleep(void)
       release(&tickslock);
       return -1;
     }
+    #ifdef SCHED_3Q
+    proc->voluntarySleep=1;
+    #endif
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);

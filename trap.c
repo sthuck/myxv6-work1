@@ -118,6 +118,29 @@ trap(struct trapframe *tf)
   }
   #endif
 
+
+  #ifdef SCHED_FRR
+  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER) {
+    proc->qtime++;
+    if (proc->qtime==QUANTA) {
+      proc->qtime=0;
+      yield();
+    }
+  }
+  #endif
+
+  #ifdef SCHED_3Q
+  if (proc->prio<2) {   //lowest que is non-preemptive
+    if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER) {
+      proc->qtime++;
+      if (proc->qtime==QUANTA) {
+        proc->qtime=0;
+        yield();
+      }
+    }
+  }
+  #endif
+
   // Check if the process has been killed since we yielded
   if(proc && proc->killed && (tf->cs&3) == DPL_USER)
     exit();

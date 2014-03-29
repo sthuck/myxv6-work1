@@ -11,7 +11,19 @@ static void startothers(void);
 static void mpmain(void)  __attribute__((noreturn));
 extern pde_t *kpgdir;
 extern char end[]; // first address after kernel loaded from ELF file
+
+#if SCHED_FRR || SCHED_FCFS
 queue ProcQue;
+#endif
+
+#if SCHED_3Q
+queue ProcQueLow;
+queue ProcQue;
+queue ProcQueHigh;
+queue ProcQues[] = {ProcQueLow,ProcQue,ProcQueHigh};
+int numQue = 3;
+#endif
+
 
 // Bootstrap processor starts running C code here.
 // Allocate a real stack and switch to it, first
@@ -37,8 +49,13 @@ main(void)
   iinit();         // inode cache
   ideinit();       // disk
 
-#ifdef SCHED_FRR
+#if SCHED_FRR || SCHED_FCFS 
   init_queue(&ProcQue);
+#endif
+
+#if SCHED_3Q
+for ( queue* q = ProcQues ; q< &ProcQues[numQue];q++)
+  init_queue(q);
 #endif
 
   if(!ismp)

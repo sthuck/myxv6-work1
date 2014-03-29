@@ -92,6 +92,8 @@ ifeq ($(SCHEDFLAG),DEFAULT)
 CFLAGS += -DSCHED_DEFAULT
 else ifeq ($(SCHEDFLAG),FRR)
 CFLAGS += -DSCHED_FRR
+else ifeq ($(SCHEDFLAG),FCFS)
+CFLAGS += -DSCHED_FCFS
 endif
 
 xv6.img: bootblock kernel fs.img
