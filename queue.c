@@ -1,5 +1,17 @@
 #include "queue.h"
 
+#if SCHED_FRR || SCHED_FCFS
+queue ProcQue;
+#endif
+
+#if SCHED_3Q
+queue ProcQueLow;
+queue ProcQue;
+queue ProcQueHigh;
+queue* ProcQues[3] = {&ProcQueLow,&ProcQue,&ProcQueHigh};
+int numQue = 3;
+#endif
+
 void
 init_queue(queue* myque) {
 	myque->first=0;

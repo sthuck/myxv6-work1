@@ -14,7 +14,8 @@ struct {
 } ptable;
 
 static struct proc *initproc;
-extern queue ProcQue;
+
+
 int nextpid = 1;
 extern void forkret(void);
 extern void trapret(void);
@@ -81,7 +82,16 @@ userinit(void)
 {
   struct proc *p;
   extern char _binary_initcode_start[], _binary_initcode_size[];
-  
+  #if SCHED_FRR || SCHED_FCFS 
+  init_queue(&ProcQue);
+  #endif
+
+  #if SCHED_3Q
+  for ( queue** q = ProcQues ; q< &ProcQues[numQue];q++)
+    init_queue(*q);
+  #endif
+
+
   p = allocproc();
   initproc = p;
   if((p->pgdir = setupkvm(kalloc)) == 0)
@@ -317,17 +327,8 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
-
-      acquire(&tickslock);
-      int tmp=ticks;
-      release(&tickslock);
-
       swtch(&cpu->scheduler, proc->context);
       switchkvm();
-
-      acquire(&tickslock);
-      p->rtime=p->rtime+(ticks-tmp);
-      release(&tickslock);
 
       // Process is done running for now.
       // It should have changed its p->state before coming back.
@@ -364,16 +365,8 @@ scheduler(void)
     switchuvm(p);
     p->state = RUNNING;
 
-    acquire(&tickslock);
-    int tmp=ticks;
-    release(&tickslock);
-
     swtch(&cpu->scheduler, proc->context);
     switchkvm();
-
-    acquire(&tickslock);
-    p->rtime=p->rtime+(ticks-tmp);
-    release(&tickslock);
 
     // Process is done running for now.
     // It should have changed its p->state before coming back.
@@ -417,16 +410,8 @@ scheduler(void)
     switchuvm(p);
     p->state = RUNNING;
 
-    acquire(&tickslock);
-    int tmp=ticks;
-    release(&tickslock);
-
     swtch(&cpu->scheduler, proc->context);
     switchkvm();
-
-    acquire(&tickslock);
-    p->rtime=p->rtime+(ticks-tmp);
-    release(&tickslock);
 
     // Process is done running for now.
     // It should have changed its p->state before coming back.
@@ -474,7 +459,7 @@ yield(void)
   #if SCHED_3Q
   if (proc->prio==2)
     panic("lowest prio process tried to yield");
-  enqueue(&ProcQues[++proc->prio],proc);
+  enqueue(ProcQues[++proc->prio],proc);
   #endif
 
   sched();
@@ -536,12 +521,13 @@ sleep(void *chan, struct spinlock *lk)
   #endif
 
   #if SCHED_3Q   
-  if (!voluntarySleep) {
-    proc->voluntarySleep=0;
-    proc->prio++;
+  if (!proc->voluntarySleep) {     //if process requested to go to sleep, don't change prio
+    proc->prio--;
     if (proc->prio<0) 
       proc->prio=0;
   }
+  else 
+    proc->voluntarySleep=0;        //reset for next time
   #endif
   sched();
 
@@ -572,10 +558,10 @@ wakeup1(void *chan)
       #endif
 
       #if SCHED_3Q
-      proc->prio--;
-      if (proc->prio<0) 
-        proc->prio=0;
-      enqueue(&ProcQues[proc->prio],p);
+      p->prio--;
+      if (p->prio<0) 
+        p->prio=0;
+      enqueue(ProcQues[p->prio],p);
       #endif
     }
 }
@@ -593,9 +579,12 @@ void iotimecount(void)
 {
   struct proc *p;
   acquire(&ptable.lock);
-  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++)
-    if(p->state == SLEEPING && p->chan != 0)
+  for(p = ptable.proc; p < &ptable.proc[NPROC]; p++) {
+    if(p->state == SLEEPING)
       p->iotime++;
+    if(p->state==RUNNING)
+      p->rtime++;
+  }
   release(&ptable.lock);
 }
 
@@ -620,7 +609,7 @@ kill(int pid)
         #endif
         
         #if SCHED_3Q
-        enqueue(&ProcQues[proc->prio],p);
+        enqueue(ProcQues[proc->prio],p);
         #endif
       }
       release(&ptable.lock);
@@ -650,7 +639,7 @@ procdump(void)
   struct proc *p;
   char *state;
   uint pc[10];
-  
+  cprintf("\n");
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
     if(p->state == UNUSED)
       continue;
@@ -658,7 +647,7 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    cprintf("%d %s %s", p->pid, state, p->name);
+    cprintf("%d %s %s pr:%d", p->pid, state, p->name,p->prio);
     if(p->state == SLEEPING){
       getcallerpcs((uint*)p->context->ebp+2, pc);
       for(i=0; i<10 && pc[i] != 0; i++)

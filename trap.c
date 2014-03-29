@@ -119,19 +119,9 @@ trap(struct trapframe *tf)
   #endif
 
 
-  #ifdef SCHED_FRR
-  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER) {
-    proc->qtime++;
-    if (proc->qtime==QUANTA) {
-      proc->qtime=0;
-      yield();
-    }
-  }
-  #endif
-
   #ifdef SCHED_3Q
-  if (proc->prio<2) {   //lowest que is non-preemptive
-    if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER) {
+  if(proc && proc->state == RUNNING && tf->trapno == T_IRQ0+IRQ_TIMER) {
+    if (proc->prio<2) {  //lowest que is non-preemptive
       proc->qtime++;
       if (proc->qtime==QUANTA) {
         proc->qtime=0;

@@ -94,6 +94,8 @@ else ifeq ($(SCHEDFLAG),FRR)
 CFLAGS += -DSCHED_FRR
 else ifeq ($(SCHEDFLAG),FCFS)
 CFLAGS += -DSCHED_FCFS
+else ifeq ($(SCHEDFLAG),3Q)
+CFLAGS += -DSCHED_3Q  -std=gnu99
 endif
 
 xv6.img: bootblock kernel fs.img
@@ -182,6 +184,7 @@ UPROGS=\
 	_wc\
 	_zombie\
 	_export\
+	_wait2test
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
@@ -218,7 +221,7 @@ QEMUGDB = $(shell if $(QEMU) -help | grep -q '^-gdb'; \
 	then echo "-gdb tcp::$(GDBPORT)"; \
 	else echo "-s -p $(GDBPORT)"; fi)
 ifndef CPUS
-CPUS := 1
+CPUS := 2
 endif
 QEMUOPTS = -hdb fs.img xv6.img -smp $(CPUS) -m 512 $(QEMUEXTRA) -net none
 

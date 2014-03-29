@@ -73,7 +73,7 @@ struct proc {
   int iotime;
   int rtime;
   int qtime;
-  char prio;  // 2 = low , 1= med , 0=high
+  int prio;  // 2 = low , 1= med , 0=high
   char voluntarySleep; // true/false
 };
 
