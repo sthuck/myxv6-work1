@@ -206,9 +206,9 @@ exit(void)
 
   iput(proc->cwd);
   proc->cwd = 0;
-  acquire(&tickslock);
+  //acquire(&tickslock);
   proc->etime=ticks;
-  release(&tickslock);
+  //release(&tickslock);
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -329,7 +329,9 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      int timetmp=ticks;
       swtch(&cpu->scheduler, proc->context);
+      p->rtime+=ticks-timetmp;
       switchkvm();
 
       // Process is done running for now.
@@ -366,8 +368,9 @@ scheduler(void)
     proc = p;
     switchuvm(p);
     p->state = RUNNING;
-
+    int timetmp = ticks;
     swtch(&cpu->scheduler, proc->context);
+    p->rtime+=ticks-timetmp;
     switchkvm();
 
     // Process is done running for now.
@@ -411,8 +414,9 @@ scheduler(void)
     proc = p;
     switchuvm(p);
     p->state = RUNNING;
-
+    int timetmp = ticks;
     swtch(&cpu->scheduler, proc->context);
+    p->rtime+=ticks-timetmp;
     switchkvm();
 
     // Process is done running for now.
@@ -477,9 +481,9 @@ forkret(void)
   // Still holding ptable.lock from scheduler.
   release(&ptable.lock);
 
-  acquire(&tickslock);
+  //acquire(&tickslock);
   proc->ctime = ticks;
-  release(&tickslock);
+  //release(&tickslock);
 
   if (first) {
     // Some initialization functions must be run in the context
@@ -531,7 +535,10 @@ sleep(void *chan, struct spinlock *lk)
   else 
     proc->voluntarySleep=0;        //reset for next time
   #endif
+
+  int timetmp=ticks;
   sched();
+  proc->iotime+=ticks-timetmp;
 
   // Tidy up.
   proc->chan = 0;
