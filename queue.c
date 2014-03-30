@@ -8,7 +8,7 @@ queue ProcQue;
 queue ProcQueLow;
 queue ProcQue;
 queue ProcQueHigh;
-queue* ProcQues[3] = {&ProcQueLow,&ProcQue,&ProcQueHigh};
+queue* ProcQues[3] = {&ProcQueHigh,&ProcQue,&ProcQueLow};
 int numQue = 3;
 #endif
 

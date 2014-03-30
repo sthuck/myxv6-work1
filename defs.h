@@ -1,3 +1,5 @@
+//#define debug(X) cprintf(X)
+#define debug(X,Y,Z,R) ;
 struct buf;
 struct context;
 struct file;

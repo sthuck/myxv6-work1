@@ -21,7 +21,22 @@ extern void forkret(void);
 extern void trapret(void);
 
 static void wakeup1(void *chan);
-
+#if SCHED_3Q
+static void prioUp(struct proc* p) {
+  p->prio--;
+  if (p->prio<0)
+    p->prio=0;
+  else
+    debug("PrioUp  %d  for proc:%s %d\n",p->prio,p->name,p->pid);
+}
+static void prioDown(struct proc* p) {
+  p->prio++;
+  if (p->prio>2)
+    p->prio=2;
+  else
+    debug("PrioDown  %d  for proc:%s %d\n",p->prio,p->name,p->pid);
+}
+#endif
 void
 pinit(void)
 {
@@ -175,12 +190,13 @@ fork(void)
   pid = np->pid;
   np->state = RUNNABLE;
   np->prio=1;
+  safestrcpy(np->name, proc->name, sizeof(proc->name));
 
   #if SCHED_FRR || SCHED_FCFS || SCHED_3Q
-  enqueue(&ProcQue,np);
+enqueue(&ProcQue,np);
   #endif
 
-  safestrcpy(np->name, proc->name, sizeof(proc->name));
+  
   return pid;
 }
 
@@ -465,7 +481,8 @@ yield(void)
   #if SCHED_3Q
   if (proc->prio==2)
     panic("lowest prio process tried to yield");
-  enqueue(ProcQues[++proc->prio],proc);
+  prioDown(proc);
+  enqueue(ProcQues[proc->prio],proc);
   #endif
 
   sched();
@@ -525,20 +542,21 @@ sleep(void *chan, struct spinlock *lk)
   #if SCHED_FRR || SCHED_3Q
   proc->qtime=0;
   #endif
-
+/*
   #if SCHED_3Q   
   if (!proc->voluntarySleep) {     //if process requested to go to sleep, don't change prio
-    proc->prio--;
-    if (proc->prio<0) 
-      proc->prio=0;
+    prioUp(proc);
+    //proc->prio--;
+    //if (proc->prio<0) 
+    //  proc->prio=0;
   }
   else 
     proc->voluntarySleep=0;        //reset for next time
   #endif
-
+*/
   int timetmp=ticks;
   sched();
-  proc->iotime+=ticks-timetmp;
+  proc->iotime+=ticks-timetmp;    //update iotime
 
   // Tidy up.
   proc->chan = 0;
@@ -567,9 +585,13 @@ wakeup1(void *chan)
       #endif
 
       #if SCHED_3Q
-      p->prio--;
-      if (p->prio<0) 
-        p->prio=0;
+      if (!p->voluntarySleep)
+        prioUp(p);
+      else 
+        p->voluntarySleep=0;        //reset for next time
+      //p->prio--;
+      //if (p->prio<0) 
+      //  p->prio=0;
       enqueue(ProcQues[p->prio],p);
       #endif
     }
@@ -618,6 +640,7 @@ kill(int pid)
         #endif
         
         #if SCHED_3Q
+        prioUp(proc);
         enqueue(ProcQues[proc->prio],p);
         #endif
       }
