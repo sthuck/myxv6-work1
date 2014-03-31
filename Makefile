@@ -30,6 +30,8 @@ OBJS = \
 	vm.o
 
 SCHEDFLAG = DEFAULT
+DEBUG=0
+
 # Cross-compiling (e.g., on Mac OS X)
 #TOOLPREFIX = i386-jos-elf-
 
@@ -96,6 +98,10 @@ else ifeq ($(SCHEDFLAG),FCFS)
 CFLAGS += -DSCHED_FCFS
 else ifeq ($(SCHEDFLAG),3Q)
 CFLAGS += -DSCHED_3Q  -std=gnu99
+endif
+
+ifeq ($(DEBUG),1)
+CFLAGS += -DDEBUG
 endif
 
 xv6.img: bootblock kernel fs.img

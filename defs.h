@@ -1,5 +1,10 @@
-//#define debug(X) cprintf(X)
-#define debug(X,Y,Z,R) ;
+
+#if DEBUG
+#define debug cprintf
+#else
+#define debug(format, args...) ((void)0)
+#endif
+
 struct buf;
 struct context;
 struct file;
