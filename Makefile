@@ -191,7 +191,8 @@ UPROGS=\
 	_zombie\
 	_export\
 	_wait2test\
-	_MLFQsanity
+	_MLFQsanity\
+	_FRRsanity
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
