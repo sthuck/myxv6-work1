@@ -197,8 +197,17 @@ cgaputc(int c)
   pos |= inb(CRTPORT + 1);
   crt[pos] = crt[pos] & 0x07FF;
   if (c == '\n') {
+    crt[pos]=0x0700;
     pos = last_pos + 80 - last_pos % 80;
     last_pos += 80 - last_pos % 80;
+  }
+  else if (c=='\t') {
+    int cul = last_pos%80;
+    cul = cul % 7;
+    cul = 7 - cul;
+    pos+=cul;
+    for (;cul>0;cul--)
+      cgaputc(32);
   }  
 
   else if (c == BACKSPACE) {

@@ -74,7 +74,7 @@ sys_sleep(void)
     #ifdef SCHED_3Q
     proc->voluntarySleep=1;
     #endif
-    debug("goint to sleep - %d tickorig %d ticknew %d\n",++i,ticks0,ticks);
+    debug("goint to sleep - %d\ttickorig %d\tticknew %d\n",++i,ticks0,ticks);
     sleep(&ticks, &tickslock);
   }
   release(&tickslock);
