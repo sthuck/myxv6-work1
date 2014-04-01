@@ -8,6 +8,7 @@
 #include "fs.h"
 #include "file.h"
 #include "spinlock.h"
+extern void* proc asm("%gs:4");
 
 struct devsw devsw[NDEV];
 struct {
@@ -117,6 +118,7 @@ int
 filewrite(struct file *f, char *addr, int n)
 {
   int r;
+  char* gotosleep = proc+0x15;
 
   if(f->writable == 0)
     return -1;
@@ -142,6 +144,8 @@ filewrite(struct file *f, char *addr, int n)
         f->off += r;
       iunlock(f->ip);
       commit_trans();
+      if (*gotosleep)
+        yield();
 
       if(r < 0)
         break;

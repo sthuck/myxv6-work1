@@ -4,6 +4,7 @@
 #include "spinlock.h"
 #include "fs.h"
 #include "buf.h"
+extern void* proc asm("%gs:4");     // cpus[cpunum()].proc
 
 // Simple logging. Each system call that might write the file system
 // should be surrounded with begin_trans() and commit_trans() calls.
@@ -43,6 +44,7 @@ struct log {
   int start;
   int size;
   int busy; // a transaction is active
+  int pidbusy;
   int dev;
   struct logheader lh;
 };
@@ -64,6 +66,7 @@ initlog(void)
   log.dev = ROOTDEV;
   recover_from_log();
 }
+
 
 // Copy committed blocks from log to their home location
 static void 
@@ -124,17 +127,24 @@ recover_from_log(void)
 void
 begin_trans(void)
 {
+  int* pid = proc+0x10;
+  char* logwrite = proc+0x14;
   acquire(&log.lock);
   while (log.busy) {
+    //cprintf("proc %d went to sleep because log is held by proc %d\n",*pid,log.pidbusy);
     sleep(&log, &log.lock);
   }
   log.busy = 1;
+  *logwrite=1;
+  log.pidbusy=*pid;
+
   release(&log.lock);
 }
 
 void
 commit_trans(void)
 {
+  char* logwrite = proc+0x14;
   if (log.lh.n > 0) {
     write_head();    // Write header to disk -- the real commit
     install_trans(); // Now install writes to home locations
@@ -144,6 +154,8 @@ commit_trans(void)
   
   acquire(&log.lock);
   log.busy = 0;
+  *logwrite=0;
+  log.pidbusy = -1;
   wakeup(&log);
   release(&log.lock);
 }

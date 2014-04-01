@@ -5,6 +5,12 @@
 #define debug(format, args...) ((void)0)
 #endif
 
+#define pause { \
+	int _i ; \
+	for (_i=0;_i<5000;_i++) \
+		asm("nop"); \
+}
+
 struct buf;
 struct context;
 struct file;

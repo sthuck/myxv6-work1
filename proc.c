@@ -86,6 +86,9 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
+  
+  p->logwrite=0;
+  p->gotosleep=0;
 
   return p;
 }
@@ -190,6 +193,7 @@ fork(void)
   pid = np->pid;
   np->state = RUNNABLE;
   np->prio=1;
+
   safestrcpy(np->name, proc->name, sizeof(proc->name));
 
   #if SCHED_FRR || SCHED_FCFS || SCHED_3Q
@@ -473,7 +477,9 @@ yield(void)
 {
   acquire(&ptable.lock);  //DOC: yieldlock
   proc->state = RUNNABLE;
-  
+  proc->qtime = 0;
+  proc->gotosleep=0;
+  debug("%c%cprocess pid:%d yielded%c%c\n",0x1b,'A',proc->pid,0x1b,'R');
   #if SCHED_FRR || SCHED_FCFS
   enqueue(&ProcQue,proc);
   #endif
@@ -498,9 +504,7 @@ forkret(void)
   // Still holding ptable.lock from scheduler.
   release(&ptable.lock);
 
-  //acquire(&tickslock);
   proc->ctime = ticks;
-  //release(&tickslock);
 
   if (first) {
     // Some initialization functions must be run in the context
@@ -542,18 +546,7 @@ sleep(void *chan, struct spinlock *lk)
   #if SCHED_FRR || SCHED_3Q
   proc->qtime=0;
   #endif
-/*
-  #if SCHED_3Q   
-  if (!proc->voluntarySleep) {     //if process requested to go to sleep, don't change prio
-    prioUp(proc);
-    //proc->prio--;
-    //if (proc->prio<0) 
-    //  proc->prio=0;
-  }
-  else 
-    proc->voluntarySleep=0;        //reset for next time
-  #endif
-*/
+
   int timetmp=ticks;
   sched();
   proc->iotime+=ticks-timetmp;    //update iotime
