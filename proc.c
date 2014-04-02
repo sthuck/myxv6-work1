@@ -186,6 +186,9 @@ fork(void)
   np->cwd = idup(proc->cwd);
  
   np->etime=0;np->rtime=0;np->iotime=0;np->qtime=0;
+  if (!ismp) acquire(&tickslock);
+  proc->etime=ticks;
+  if (!ismp) release(&tickslock);
 
   pid = np->pid;
   np->state = RUNNABLE;
@@ -193,7 +196,7 @@ fork(void)
   safestrcpy(np->name, proc->name, sizeof(proc->name));
 
   #if SCHED_FRR || SCHED_FCFS || SCHED_3Q
-enqueue(&ProcQue,np);
+    enqueue(&ProcQue,np);
   #endif
 
   
@@ -222,9 +225,9 @@ exit(void)
 
   iput(proc->cwd);
   proc->cwd = 0;
-  //acquire(&tickslock);
+  if (!ismp) acquire(&tickslock);
   proc->etime=ticks;
-  //release(&tickslock);
+  if (!ismp) release(&tickslock);
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -345,9 +348,13 @@ scheduler(void)
       proc = p;
       switchuvm(p);
       p->state = RUNNING;
+      if (!ismp) acquire(&tickslock);
       int timetmp=ticks;
+      if (!ismp) release(&tickslock);
       swtch(&cpu->scheduler, proc->context);
+      if (!ismp) acquire(&tickslock);
       p->rtime+=ticks-timetmp;
+      if (!ismp) release(&tickslock);
       switchkvm();
 
       // Process is done running for now.
@@ -484,7 +491,7 @@ yield(void)
   prioDown(proc);
   enqueue(ProcQues[proc->prio],proc);
   #endif
-
+  debug("process pid %d went to sleep\n",proc->pid);
   sched();
   release(&ptable.lock);
 }
@@ -497,10 +504,6 @@ forkret(void)
   static int first = 1;
   // Still holding ptable.lock from scheduler.
   release(&ptable.lock);
-
-  //acquire(&tickslock);
-  proc->ctime = ticks;
-  //release(&tickslock);
 
   if (first) {
     // Some initialization functions must be run in the context
@@ -554,9 +557,13 @@ sleep(void *chan, struct spinlock *lk)
     proc->voluntarySleep=0;        //reset for next time
   #endif
 */
+  if (!ismp) acquire(&tickslock);
   int timetmp=ticks;
+  if (!ismp) release(&tickslock);
   sched();
+  if (!ismp) acquire(&tickslock);
   proc->iotime+=ticks-timetmp;    //update iotime
+  if (!ismp) release(&tickslock);
 
   // Tidy up.
   proc->chan = 0;

@@ -36,7 +36,7 @@ int doFork() {
       up=uptime(); //this should casue sleep and prio UP
       up++;
       int i;
-      for (i=0;i<50;i++)
+      for (i=0;i<500;i++)
         printf(1,"cid: %d\n",cid);
     }
     exit();

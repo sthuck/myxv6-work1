@@ -136,12 +136,14 @@ filewrite(struct file *f, char *addr, int n)
       if(n1 > max)
         n1 = max;
 
+      if (!ismp) pushcli();
       begin_trans();
       ilock(f->ip);
       if ((r = writei(f->ip, addr + i, f->off, n1)) > 0)
         f->off += r;
       iunlock(f->ip);
       commit_trans();
+      if (!ismp) popcli();
 
       if(r < 0)
         break;
