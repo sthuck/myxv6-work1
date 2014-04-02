@@ -1,5 +1,6 @@
 #include "types.h"
 #include "user.h"
+#include "stat.h"
 
 int cid;
 
@@ -24,7 +25,7 @@ int doFork() {
   if (pid==0) {
     if (cid%2==0) {
       int j;
-      for (j=0;j<90000000;j++)  //time consuming, should take more than one cycle
+      for (j=0;j<100000000;j++)  //time consuming, should take more than one cycle
         j++;
 
       int i;
@@ -32,10 +33,8 @@ int doFork() {
         printf(1,"cid: %d\n",cid);
     }
     else {
-      int up = uptime();  //this should casue sleep and prio UP
-      up=uptime();
-      up=uptime();
-      up++;
+      struct stat bla;
+      fstat(1,&bla);  //IO
       int i;
       for (i=0;i<200;i++)
         printf(1,"cid: %d\n",cid);
@@ -97,12 +96,12 @@ main(int argc, char *argv[])
   printf(1,"avarage stats for group 1 - low prio:\n");
   printf(1,"rtime:%d  wtime:%d  iotime:%d  Turnaround:%d\n\n",rTimeAvg1,wTimeAvg1,ioTimeAvg1,turnTimeAvg1);
   for (i=0;i<20;i=i+2)
-    printf(1,"cid:%d  rtime:%d  wtime:%d  iotime:%d Turnaround:%d\n",i,procStat[i][1],procStat[i][0],procStat[i][2],procStat[i][0]+procStat[i][1]+procStat[i][2]);
+    printf(1,"cid:%d  rtime:%d  wtime:%d  iotime:%d  \tTurnaround:%d\n",i,procStat[i][1],procStat[i][0],procStat[i][2],procStat[i][0]+procStat[i][1]+procStat[i][2]);
   printf(1,"\n========================================\n\n");
   printf(1,"avarage stats for group 2 - high prio:\n");
   printf(1,"rtime:%d  wtime:%d  iotime:%d  Turnaround:%d\n\n",rTimeAvg2,wTimeAvg2,ioTimeAvg2,turnTimeAvg2);
   for (i=1;i<20;i=i+2)
-    printf(1,"cid:%d  rtime:%d  wtime:%d  iotime:%d  Turnaround:%d\n",i,procStat[i][1],procStat[i][0],procStat[i][2],procStat[i][0]+procStat[i][1]+procStat[i][2]);
+    printf(1,"cid:%d  rtime:%d  \twtime:%d  \tiotime:%d  \tTurnaround:%d\n",i,procStat[i][1],procStat[i][0],procStat[i][2],procStat[i][0]+procStat[i][1]+procStat[i][2]);
   
   exit();
 }
