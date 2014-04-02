@@ -28,12 +28,11 @@ int doFork() {
         j++;
 
       int i;
-      for (i=0;i<20;i++)
+      for (i=0;i<500;i++)
         printf(1,"cid: %d\n",cid);
     }
     else {
-      int up = uptime();
-      up=uptime(); //this should casue sleep and prio UP
+      int up = uptime();  //this should casue sleep and prio UP
       up++;
       int i;
       for (i=0;i<500;i++)
