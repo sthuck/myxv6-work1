@@ -10,7 +10,7 @@ void pCP(void)
         if (fork() == 0) {
             int j;
             pid= getpid();
-            for(j=0; j<200;++j)
+            for(j=0; j<1000;++j)
             	printf(1,"child %d prints for the %d time\n", pid,j);
 
             exit();

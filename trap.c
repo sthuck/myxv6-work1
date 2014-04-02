@@ -128,7 +128,12 @@ trap(struct trapframe *tf)
     if (proc->prio<2) {  //lowest que is non-preemptive
       proc->qtime++;
       if (proc->qtime>=QUANTA) {
+       if (!proc->logwrite) {
+        proc->gotosleep=0;
         yield();
+      }
+      else
+        proc->gotosleep=1;
       }
     }
   }

@@ -189,6 +189,9 @@ fork(void)
   np->cwd = idup(proc->cwd);
  
   np->etime=0;np->rtime=0;np->iotime=0;np->qtime=0;
+  if (!ismp) acquire(&tickslock);
+  np->ctime=ticks;
+  if (!ismp) release(&tickslock);
 
   pid = np->pid;
   np->state = RUNNABLE;
@@ -226,9 +229,11 @@ exit(void)
 
   iput(proc->cwd);
   proc->cwd = 0;
-  //acquire(&tickslock);
+
+  if (!ismp) acquire(&tickslock);
   proc->etime=ticks;
-  //release(&tickslock);
+  if (!ismp) release(&tickslock);
+
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -479,7 +484,8 @@ yield(void)
   proc->state = RUNNABLE;
   proc->qtime = 0;
   proc->gotosleep=0;
-  debug("%c%cprocess pid:%d yielded%c%c\n",0x1b,'A',proc->pid,0x1b,'R');
+  debug("%c%cprocess pid:%d yielded%c%c\n",0x1b,'B',proc->pid,0x1b,'R');
+
   #if SCHED_FRR || SCHED_FCFS
   enqueue(&ProcQue,proc);
   #endif
@@ -503,8 +509,6 @@ forkret(void)
   static int first = 1;
   // Still holding ptable.lock from scheduler.
   release(&ptable.lock);
-
-  proc->ctime = ticks;
 
   if (first) {
     // Some initialization functions must be run in the context
