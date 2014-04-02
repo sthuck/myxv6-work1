@@ -550,10 +550,13 @@ sleep(void *chan, struct spinlock *lk)
   #if SCHED_FRR || SCHED_3Q
   proc->qtime=0;
   #endif
-
+  if (!ismp) acquire(&tickslock);
   int timetmp=ticks;
+  if (!ismp) release(&tickslock);
   sched();
+  if (!ismp) acquire(&tickslock);
   proc->iotime+=ticks-timetmp;    //update iotime
+  if (!ismp) release(&tickslock);
 
   // Tidy up.
   proc->chan = 0;

@@ -192,7 +192,8 @@ UPROGS=\
 	_export\
 	_wait2test\
 	_MLFQsanity\
-	_FRRsanity
+	_FRRsanity\
+	_checkCpu
 
 fs.img: mkfs README $(UPROGS)
 	./mkfs fs.img README $(UPROGS)
