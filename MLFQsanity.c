@@ -1,5 +1,6 @@
 #include "types.h"
 #include "user.h"
+#include "stat.h"
 
 int cid;
 
@@ -24,19 +25,18 @@ int doFork() {
   if (pid==0) {
     if (cid%2==0) {
       int j;
-      for (j=0;j<5000000;j++)  //time consuming, should take more than one cycle
+      for (j=0;j<100000000;j++)  //time consuming, should take more than one cycle
         j++;
 
       int i;
-      for (i=0;i<50;i++)
+      for (i=0;i<200;i++)
         printf(1,"cid: %d\n",cid);
     }
     else {
-      int up = uptime();
-      up=uptime(); //this should casue sleep and prio UP
-      up++;
+      struct stat bla;
+      fstat(1,&bla);  //IO
       int i;
-      for (i=0;i<500;i++)
+      for (i=0;i<200;i++)
         printf(1,"cid: %d\n",cid);
     }
     exit();
